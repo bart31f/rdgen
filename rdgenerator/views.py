@@ -23,6 +23,30 @@ from urllib.parse import quote
 _UUID_RE = re.compile(r'^[0-9a-fA-F-]{36}$')
 _NAME_RE = re.compile(r'^[\w.-]+$')
 
+from functools import wraps
+from django.views.decorators.csrf import csrf_exempt
+
+
+
+def rdgen_api_auth(view_func):
+    @wraps(view_func)
+    @csrf_exempt
+    def wrapped(request, *args, **kwargs):
+        expected = os.environ.get('RDGEN_API_TOKEN', '')
+        supplied = request.headers.get('Authorization', '')
+
+        if not expected or not supplied.startswith('Bearer '):
+            return HttpResponseForbidden('Forbidden')
+
+        token = supplied[7:]
+
+        if not secrets.compare_digest(token, expected):
+            return HttpResponseForbidden('Forbidden')
+
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
+
 def _safe_parts(uuid_val, filename):
     if not uuid_val or not _UUID_RE.match(uuid_val):
         return False
@@ -404,7 +428,7 @@ def generator_view(request):
         form = GenerateForm(request.POST, request.FILES)
         if form.is_valid():
             params = form.cleaned_data
-            full_url = f"{_settings.PROTOCOL}://{request.get_host()}" if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
+            full_url = _settings.GENURL.rstrip('/') if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
             result = generate_custom_client(params, full_url)
             if result['success']:
                 return render(request, 'waiting.html', {
@@ -495,6 +519,7 @@ def create_github_run(myuuid):
     )
     new_github_run.save()
 
+@rdgen_api_auth
 def update_github_run(request):
     data = json.loads(request.body)
     myuuid = data.get('uuid')
@@ -598,6 +623,7 @@ def save_png(file, uuid, domain, name):
     #return "%s/%s" % (domain, file_save_path)
     return domain, uuid, name
 
+@rdgen_api_auth
 def save_custom_client(request):
     file = request.FILES['file']
     myuuid = request.POST.get('uuid')
@@ -611,6 +637,7 @@ def save_custom_client(request):
 
     return HttpResponse("File saved successfully!")
 
+@rdgen_api_auth
 def cleanup_secrets(request):
     # Pass the UUID as a query param or in JSON body
     data = json.loads(request.body)
@@ -634,6 +661,7 @@ def cleanup_secrets(request):
 
     return HttpResponse("Cleanup successful", status=200)
 
+@rdgen_api_auth
 def get_zip(request):
     filename = request.GET['filename']
     base_dir = os.path.abspath('temp_zips')
