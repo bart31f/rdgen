@@ -88,7 +88,7 @@ def generate_custom_client(params, full_url):
     if not key:
         key = 'OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=' #default rustdesk key
     if not apiServer:
-        apiServer = server+":21114"
+        apiServer = "http://" + server + ":18080"
     if not urlLink:
         urlLink = "https://rustdesk.com"
     if not downloadLink:
@@ -241,9 +241,10 @@ def generate_custom_client(params, full_url):
         decodedCustom['override-settings']['enable-remote-printer'] = 'Y' if enablePrinter else 'N'
         decodedCustom['override-settings']['enable-camera'] = 'Y' if enableCamera else 'N'
         decodedCustom['override-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
-        if direction == 'incoming':
-            decodedCustom['override-settings']['custom-rendezvous-server'] = server
-            decodedCustom['override-settings']['api-server'] = apiServer
+
+    if direction in ('incoming', 'Both'):
+        decodedCustom['override-settings']['custom-rendezvous-server'] = server
+        decodedCustom['override-settings']['api-server'] = apiServer
 
     if defaultManual:
         for line in defaultManual.splitlines():

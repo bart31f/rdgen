@@ -208,7 +208,24 @@ jobs:
           sed -i -e 's|{subkey}|\\\"{subkey}\\\"|' ./src/platform/windows.rs
           sed -i -e 's|reg delete HKEY_CLASSES_ROOT\\\\.{ext} /f|reg delete \\\"HKEY_CLASSES_ROOT\\\\.{ext}\\\" /f|' ./src/platform/windows.rs
           sed -i -e 's|reg delete HKEY_CLASSES_ROOT\\\\{ext} /f|reg delete \\\"HKEY_CLASSES_ROOT\\\\{ext}\\\" /f|' ./src/platform/windows.rs
-          
+      - name: fix MSI registry lookup for spaces
+        if: contains(env.appname, ' ')
+        shell: pwsh
+        run: |
+          $file = "./src/platform/windows.rs"
+          $source = Get-Content $file -Raw
+          $old = '    let subkey = get_subkey(IS1, false);'
+          $new = @'
+             let msi_name = app_name.replace(" ", "_");
+             let msi_subkey = format!("{HKLM_PREFIX}Software\\{msi_name}\\InstallState\\{msi_name}");
+             if !get_reg_of(&msi_subkey, "InstallLocation").is_empty() {
+               return msi_subkey;
+            }
+            let subkey = get_subkey(IS1, false);
+          '@
+          if (-not $source.Contains($old)) { throw "Registry patch target not found" }
+          $source = $source.Replace($old, $new)
+          Set-Content $file $source -NoNewline          
       - name: change company name
         if: env.compname != 'Purslane Ltd'
         continue-on-error: true
